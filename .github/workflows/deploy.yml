@@ -1,0 +1,32 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - homolog
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy Kubernetes Infra
+    runs-on: ubuntu-latest
+    environment: ${{ github.ref_name == 'main' && 'production' || 'homolog' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Validate
+        run: |
+          terraform -chdir=terraform init -backend=false
+          terraform -chdir=terraform validate
+          kubectl kustomize k8s/overlays/${{ github.ref_name == 'main' && 'prod' || 'homolog' }}
+
+      - name: Deploy placeholder
+        run: echo "Configure AWS credentials, terraform backend, terraform apply and kubectl apply here."
+
