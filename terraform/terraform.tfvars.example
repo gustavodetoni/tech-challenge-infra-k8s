@@ -1,0 +1,19 @@
+project_name    = "tech-challenge"
+aws_region      = "us-east-1"
+environment     = "homolog"
+cluster_version = "1.33"
+
+# Informe o ARN do listener do NLB usado pelo Service/Ingress privado da API.
+api_gateway_integration_uri = ""
+
+# Outputs do repositorio tech-challenge-auth-lambda.
+auth_lambda_invoke_arn     = ""
+auth_lambda_function_name  = ""
+
+api_gateway_protected_client_routes = [
+  "GET /client/service-orders/{code}",
+  "GET /client/service-orders/{code}/status",
+  "POST /client/service-orders/{code}/budget/approve",
+  "POST /client/service-orders/{code}/budget/reject",
+]
+

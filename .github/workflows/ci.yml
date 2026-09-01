@@ -5,6 +5,10 @@ on:
     branches:
       - main
       - homolog
+  push:
+    branches:
+      - homolog
+      - main
 
 permissions:
   contents: read
@@ -20,6 +24,9 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v4
+
       - name: Terraform fmt
         run: terraform -chdir=terraform fmt -check
 
@@ -30,8 +37,11 @@ jobs:
         run: terraform -chdir=terraform validate
 
       - name: Kustomize homolog
-        run: kubectl kustomize k8s/overlays/homolog
+        run: |
+          cp k8s/overlays/homolog/.env.k8s.example k8s/overlays/homolog/.env.k8s
+          kubectl kustomize k8s/overlays/homolog
 
       - name: Kustomize prod
-        run: kubectl kustomize k8s/overlays/prod
-
+        run: |
+          cp k8s/overlays/prod/.env.k8s.example k8s/overlays/prod/.env.k8s
+          kubectl kustomize k8s/overlays/prod

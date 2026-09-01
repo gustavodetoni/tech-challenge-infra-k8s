@@ -1,0 +1,37 @@
+datadog:
+  site: datadoghq.com
+  apiKeyExistingSecret: datadog-secret
+  clusterName: tech-challenge-eks
+
+  tags:
+    - project:tech-challenge
+    - service:tech-challenge-api
+
+  logs:
+    enabled: true
+    containerCollectAll: true
+
+  apm:
+    instrumentation:
+      enabled: true
+    portEnabled: true
+
+  processAgent:
+    enabled: true
+    processCollection: true
+
+  kubeStateMetricsEnabled: true
+  kubeStateMetricsCore:
+    enabled: true
+
+  orchestratorExplorer:
+    enabled: true
+
+  networkMonitoring:
+    enabled: true
+
+clusterAgent:
+  enabled: true
+  metricsProvider:
+    enabled: true
+

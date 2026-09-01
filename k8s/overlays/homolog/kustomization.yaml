@@ -2,4 +2,31 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - ../../base
+images:
+  - name: docker.io/gustavodetoni/tech-challenge-project
+    newTag: homolog
+generatorOptions:
+  disableNameSuffixHash: true
+secretGenerator:
+  - name: tech-challenge-api-secret
+    namespace: tech-challenge
+    envs:
+      - .env.k8s
+patches:
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: tech-challenge-api
+      namespace: tech-challenge
+    patch: |-
+      - op: add
+        path: /spec/template/metadata/labels/tags.datadoghq.com~1env
+        value: homolog
+      - op: add
+        path: /spec/template/metadata/labels/tags.datadoghq.com~1version
+        value: homolog
+      - op: replace
+        path: /spec/replicas
+        value: 2
 

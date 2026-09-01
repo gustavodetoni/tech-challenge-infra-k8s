@@ -1,6 +1,6 @@
 # Tech Challenge Infra Kubernetes
 
-Infraestrutura Kubernetes da aplicacao principal da oficina, incluindo cluster, API Gateway, autoscaling e observabilidade.
+Infraestrutura Kubernetes da aplicacao principal da oficina, incluindo rede, cluster, API Gateway, autoscaling e observabilidade.
 
 ## Proposito
 
@@ -24,16 +24,20 @@ terraform/              Infraestrutura cloud do cluster e gateway
 k8s/base/               Manifests reutilizaveis
 k8s/overlays/homolog/   Ambiente de homologacao
 k8s/overlays/prod/      Ambiente de producao
+observability/          Helm values e instrucoes Datadog
 docs/architecture/      Diagramas e decisoes do repo
 ```
 
 ## Execucao Local
 
 ```bash
+cp terraform/terraform.tfvars.example terraform/terraform.tfvars
 terraform -chdir=terraform init
 terraform -chdir=terraform validate
 kubectl kustomize k8s/overlays/homolog
 ```
+
+Este repositorio tambem publica outputs consumidos pelos repositorios `tech-challenge-infra-database` e `tech-challenge-auth-lambda`, como VPC, subnets privadas, security group dos nodes do EKS e security group da Lambda.
 
 ## Deploy
 
@@ -43,6 +47,38 @@ Fluxo previsto:
 pull_request -> terraform fmt/validate + kustomize build
 homolog      -> terraform apply homolog + kubectl apply
 main         -> terraform apply prod + kubectl apply
+```
+
+## Ordem De Deploy
+
+1. Aplicar este repositorio primeiro para criar VPC, EKS, API Gateway e security group da Lambda.
+2. Aplicar `tech-challenge-infra-database` para criar o RDS usando os outputs de rede.
+3. Aplicar `tech-challenge-auth-lambda` para criar a Lambda usando os outputs do banco e da rede.
+4. Reaplicar este repositorio com os outputs da Lambda e o ARN do listener do NLB para fechar as rotas do API Gateway.
+
+Mais detalhes: [docs/architecture/deployment-order.md](docs/architecture/deployment-order.md)
+
+## Variaveis Pendentes Para Subida
+
+Secrets GitHub:
+
+```text
+AWS_ACCESS_KEY_ID
+AWS_SECRET_ACCESS_KEY
+TF_STATE_BUCKET
+DATABASE_URL
+JWT_SECRET
+BREVO_API_KEY
+BREVO_SENDER_EMAIL
+DATADOG_API_KEY
+```
+
+Variables GitHub:
+
+```text
+API_GATEWAY_INTEGRATION_URI
+AUTH_LAMBDA_INVOKE_ARN
+AUTH_LAMBDA_FUNCTION_NAME
 ```
 
 ## Arquitetura
@@ -55,11 +91,37 @@ Internet
               -> Deployment API Principal
               -> HPA
               -> Observability Agent
+
+Lambda Auth CPF
+  -> Security Group compartilhado
+      -> RDS PostgreSQL
 ```
+
+## API Gateway
+
+O proxy geral encaminha para a API no EKS. Apenas as rotas sensiveis de cliente usam Lambda Authorizer:
+
+```text
+GET  /client/service-orders/{code}
+GET  /client/service-orders/{code}/status
+POST /client/service-orders/{code}/budget/approve
+POST /client/service-orders/{code}/budget/reject
+```
+
+Detalhes: [docs/architecture/api-gateway.md](docs/architecture/api-gateway.md)
+
+## Observabilidade
+
+A integracao padrao e Datadog via Helm chart. Os valores ficam em:
+
+```text
+observability/datadog-values.yaml
+```
+
+Detalhes: [docs/architecture/observability.md](docs/architecture/observability.md)
 
 ## Links
 
 - Swagger/Postman da API principal: pendente
 - Deploy homologacao: pendente
 - Deploy producao: pendente
-

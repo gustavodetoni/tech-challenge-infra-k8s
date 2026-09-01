@@ -9,5 +9,7 @@ flowchart LR
     api --> db[(RDS PostgreSQL)]
     eks --> obs[Datadog/New Relic]
     gateway --> obs
+    auth --> db
+    auth --> obs
+    db --> obs
 ```
-
