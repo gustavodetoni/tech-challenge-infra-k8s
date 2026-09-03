@@ -1,10 +1,13 @@
 name: Deploy
 
 on:
-  push:
-    branches:
-      - homolog
-      - main
+  workflow_dispatch:
+  # Deploy automatico desabilitado no primeiro push do repositorio.
+  # Reativar quando as variaveis AWS/Terraform/API Gateway estiverem configuradas.
+  # push:
+  #   branches:
+  #     - homolog
+  #     - main
 
 permissions:
   contents: read
@@ -20,6 +23,7 @@ env:
 jobs:
   deploy:
     name: Deploy Kubernetes Infra
+    if: ${{ false }}
     runs-on: ubuntu-latest
     environment: ${{ github.ref_name == 'main' && 'production' || 'homolog' }}
     steps:
