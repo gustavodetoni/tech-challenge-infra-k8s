@@ -103,11 +103,11 @@ Eles podem ser informados diretamente nos inputs do `Run workflow` quando forem 
 
 ## Compatibilidade AWS Academy
 
-O AWS Academy aplica uma politica com `Deny` explicito para algumas chamadas IAM, incluindo `iam:GetRole` na role `voclabs`.
+O AWS Academy aplica politicas restritivas para IAM, incluindo bloqueios para `iam:GetRole` e `iam:CreateRole` na role `voclabs`.
 Por isso, o modulo EKS foi fixado na serie `~> 18.0`, que nao usa o data source `aws_iam_session_context`.
 
 As versoes mais novas do modulo EKS, como `v20`, consultam o contexto da sessao IAM durante o `plan` e falham no lab antes da criacao do cluster.
-No AWS Academy, o cluster deve ser criado e operado pela mesma role temporaria `voclabs` usada nos workflows.
+No AWS Academy, o cluster e o node group reutilizam automaticamente a role temporaria `voclabs` usada nos workflows, evitando a criacao de novas IAM Roles.
 
 ## Arquitetura
 
