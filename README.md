@@ -101,6 +101,14 @@ DATADOG_API_KEY opcional
 Os valores de API Gateway e Lambda nao precisam ficar salvos como variables no GitHub para a primeira versao.
 Eles podem ser informados diretamente nos inputs do `Run workflow` quando forem gerados pelos workflows anteriores.
 
+## Compatibilidade AWS Academy
+
+O AWS Academy aplica uma politica com `Deny` explicito para algumas chamadas IAM, incluindo `iam:GetRole` na role `voclabs`.
+Por isso, o modulo EKS nao usa `enable_cluster_creator_admin_permissions = true`.
+
+A entrada administrativa do cluster e criada via `access_entries`, derivando a role atual com `sts:GetCallerIdentity`, sem consultar `iam:GetRole`.
+Isso permite manter permissao para operar o cluster via `kubectl` no workflow sem exigir permissao IAM bloqueada pelo lab.
+
 ## Arquitetura
 
 ```text
