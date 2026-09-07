@@ -2,8 +2,52 @@ name: Deploy
 
 on:
   workflow_dispatch:
-  # Deploy automatico desabilitado no primeiro push do repositorio.
-  # Reativar quando as variaveis AWS/Terraform/API Gateway estiverem configuradas.
+    inputs:
+      action:
+        description: "Acao do Terraform"
+        required: true
+        default: "apply"
+        type: choice
+        options:
+          - apply
+          - destroy
+      environment:
+        description: "Ambiente"
+        required: true
+        default: "homolog"
+        type: choice
+        options:
+          - homolog
+          - prod
+      deploy_kubernetes:
+        description: "Aplicar manifests Kubernetes neste run"
+        required: true
+        default: "no"
+        type: choice
+        options:
+          - "yes"
+          - "no"
+      deploy_datadog:
+        description: "Instalar/atualizar Datadog Agent"
+        required: true
+        default: "no"
+        type: choice
+        options:
+          - "yes"
+          - "no"
+      api_gateway_integration_uri:
+        description: "ARN do listener NLB da API. Opcional no primeiro apply."
+        required: false
+        type: string
+      auth_lambda_invoke_arn:
+        description: "Invoke ARN da Lambda Auth. Opcional no primeiro apply."
+        required: false
+        type: string
+      auth_lambda_function_name:
+        description: "Nome da Lambda Auth. Opcional no primeiro apply."
+        required: false
+        type: string
+  # Deploy automatico futuro:
   # push:
   #   branches:
   #     - homolog
@@ -16,25 +60,40 @@ env:
   AWS_REGION: us-east-1
   K8S_NAMESPACE: tech-challenge
   K8S_DEPLOYMENT: tech-challenge-api
-  DOCKER_IMAGE: docker.io/gustavodetoni/tech-challenge-project
   TF_IN_AUTOMATION: "true"
   TF_INPUT: "false"
 
 jobs:
-  deploy:
-    name: Deploy Kubernetes Infra
-    if: ${{ false }}
+  apply:
+    name: Apply Kubernetes Infra
+    if: ${{ inputs.action == 'apply' }}
     runs-on: ubuntu-latest
-    environment: ${{ github.ref_name == 'main' && 'production' || 'homolog' }}
+    environment: ${{ inputs.environment == 'prod' && 'production' || 'homolog' }}
+    outputs:
+      cluster_name: ${{ steps.outputs.outputs.cluster_name }}
+      api_gateway_endpoint: ${{ steps.outputs.outputs.api_gateway_endpoint }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+
+      - name: Validate required secrets
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+          TF_STATE_BUCKET: ${{ secrets.TF_STATE_BUCKET }}
+        run: |
+          test -n "$AWS_ACCESS_KEY_ID" || (echo "AWS_ACCESS_KEY_ID secret is required." && exit 1)
+          test -n "$AWS_SECRET_ACCESS_KEY" || (echo "AWS_SECRET_ACCESS_KEY secret is required." && exit 1)
+          test -n "$AWS_SESSION_TOKEN" || (echo "AWS_SESSION_TOKEN secret is required for AWS Academy." && exit 1)
+          test -n "$TF_STATE_BUCKET" || (echo "TF_STATE_BUCKET secret is required." && exit 1)
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v5
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Setup Terraform
@@ -42,11 +101,22 @@ jobs:
         with:
           terraform_wrapper: false
 
+      - name: Ensure Terraform state bucket
+        env:
+          TF_STATE_BUCKET: ${{ secrets.TF_STATE_BUCKET }}
+        run: |
+          if ! aws s3api head-bucket --bucket "$TF_STATE_BUCKET" 2>/dev/null; then
+            aws s3api create-bucket --bucket "$TF_STATE_BUCKET" --region "$AWS_REGION"
+            aws s3api put-bucket-versioning \
+              --bucket "$TF_STATE_BUCKET" \
+              --versioning-configuration Status=Enabled
+          fi
+
       - name: Terraform init
         run: |
           terraform -chdir=terraform init \
             -backend-config="bucket=${{ secrets.TF_STATE_BUCKET }}" \
-            -backend-config="key=tech-challenge/k8s/${{ github.ref_name }}.tfstate" \
+            -backend-config="key=tech-challenge/k8s/${{ inputs.environment }}.tfstate" \
             -backend-config="region=${{ env.AWS_REGION }}"
 
       - name: Terraform validate
@@ -54,46 +124,122 @@ jobs:
 
       - name: Terraform plan
         env:
-          TF_VAR_environment: ${{ github.ref_name == 'main' && 'prod' || 'homolog' }}
-          TF_VAR_api_gateway_integration_uri: ${{ vars.API_GATEWAY_INTEGRATION_URI }}
-          TF_VAR_auth_lambda_invoke_arn: ${{ vars.AUTH_LAMBDA_INVOKE_ARN }}
-          TF_VAR_auth_lambda_function_name: ${{ vars.AUTH_LAMBDA_FUNCTION_NAME }}
+          TF_VAR_environment: ${{ inputs.environment }}
+          TF_VAR_api_gateway_integration_uri: ${{ inputs.api_gateway_integration_uri }}
+          TF_VAR_auth_lambda_invoke_arn: ${{ inputs.auth_lambda_invoke_arn }}
+          TF_VAR_auth_lambda_function_name: ${{ inputs.auth_lambda_function_name }}
         run: terraform -chdir=terraform plan -out=tfplan
 
       - name: Terraform apply
+        env:
+          TF_VAR_environment: ${{ inputs.environment }}
+          TF_VAR_api_gateway_integration_uri: ${{ inputs.api_gateway_integration_uri }}
+          TF_VAR_auth_lambda_invoke_arn: ${{ inputs.auth_lambda_invoke_arn }}
+          TF_VAR_auth_lambda_function_name: ${{ inputs.auth_lambda_function_name }}
         run: terraform -chdir=terraform apply -auto-approve tfplan
 
+      - name: Terraform outputs
+        id: outputs
+        run: |
+          cluster_name="$(terraform -chdir=terraform output -raw cluster_name)"
+          api_gateway_endpoint="$(terraform -chdir=terraform output -raw api_gateway_endpoint)"
+
+          echo "cluster_name=$cluster_name" >> "$GITHUB_OUTPUT"
+          echo "api_gateway_endpoint=$api_gateway_endpoint" >> "$GITHUB_OUTPUT"
+
+          {
+            echo "## Kubernetes infra outputs"
+            echo ""
+            echo "- Environment: ${{ inputs.environment }}"
+            echo "- Cluster: $cluster_name"
+            echo "- API Gateway: $api_gateway_endpoint"
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Setup kubectl
+        if: ${{ inputs.deploy_kubernetes == 'yes' || inputs.deploy_datadog == 'yes' }}
         uses: azure/setup-kubectl@v4
 
       - name: Update kubeconfig
-        run: |
-          cluster_name="$(terraform -chdir=terraform output -raw cluster_name)"
-          aws eks update-kubeconfig --region "$AWS_REGION" --name "$cluster_name"
+        if: ${{ inputs.deploy_kubernetes == 'yes' || inputs.deploy_datadog == 'yes' }}
+        run: aws eks update-kubeconfig --region "$AWS_REGION" --name "${{ steps.outputs.outputs.cluster_name }}"
 
       - name: Create Kubernetes env file
+        if: ${{ inputs.deploy_kubernetes == 'yes' }}
         env:
-          OVERLAY: ${{ github.ref_name == 'main' && 'prod' || 'homolog' }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
+          BREVO_SENDER_EMAIL: ${{ secrets.BREVO_SENDER_EMAIL }}
         run: |
+          test -n "$DATABASE_URL" || (echo "DATABASE_URL secret is required when deploy_kubernetes=yes." && exit 1)
+          test -n "$JWT_SECRET" || (echo "JWT_SECRET secret is required when deploy_kubernetes=yes." && exit 1)
           {
-            echo "DATABASE_URL=${{ secrets.DATABASE_URL }}"
-            echo "JWT_SECRET=${{ secrets.JWT_SECRET }}"
-            echo "BREVO_API_KEY=${{ secrets.BREVO_API_KEY }}"
-            echo "BREVO_SENDER_EMAIL=${{ secrets.BREVO_SENDER_EMAIL }}"
-          } > "k8s/overlays/$OVERLAY/.env.k8s"
+            echo "DATABASE_URL=$DATABASE_URL"
+            echo "JWT_SECRET=$JWT_SECRET"
+            echo "BREVO_API_KEY=$BREVO_API_KEY"
+            echo "BREVO_SENDER_EMAIL=$BREVO_SENDER_EMAIL"
+          } > "k8s/overlays/${{ inputs.environment }}/.env.k8s"
 
       - name: Deploy Kubernetes manifests
-        env:
-          OVERLAY: ${{ github.ref_name == 'main' && 'prod' || 'homolog' }}
-        run: kubectl apply -k "k8s/overlays/$OVERLAY"
+        if: ${{ inputs.deploy_kubernetes == 'yes' }}
+        run: kubectl apply -k "k8s/overlays/${{ inputs.environment }}"
 
       - name: Wait for rollout
+        if: ${{ inputs.deploy_kubernetes == 'yes' }}
         run: kubectl rollout status "deployment/$K8S_DEPLOYMENT" -n "$K8S_NAMESPACE" --timeout=300s
 
+      - name: Print NLB listener ARN
+        if: ${{ inputs.deploy_kubernetes == 'yes' }}
+        run: |
+          lb_hostname=""
+          for i in $(seq 1 60); do
+            lb_hostname="$(kubectl get service "$K8S_DEPLOYMENT" \
+              -n "$K8S_NAMESPACE" \
+              -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')"
+            if [ -n "$lb_hostname" ]; then
+              break
+            fi
+            echo "Waiting for NLB hostname..."
+            sleep 10
+          done
+
+          if [ -z "$lb_hostname" ]; then
+            echo "NLB hostname not available yet."
+            exit 0
+          fi
+
+          lb_arn="$(aws elbv2 describe-load-balancers \
+            --query "LoadBalancers[?DNSName=='$lb_hostname'].LoadBalancerArn | [0]" \
+            --output text)"
+
+          if [ -z "$lb_arn" ] || [ "$lb_arn" = "None" ]; then
+            echo "NLB ARN not found for hostname $lb_hostname."
+            exit 0
+          fi
+
+          listener_arn="$(aws elbv2 describe-listeners \
+            --load-balancer-arn "$lb_arn" \
+            --query "Listeners[?Port==\`8080\`].ListenerArn | [0]" \
+            --output text)"
+
+          {
+            echo "## NLB integration"
+            echo ""
+            echo "- NLB hostname: $lb_hostname"
+            echo "- NLB ARN: $lb_arn"
+            echo "- API Gateway integration URI: $listener_arn"
+            echo ""
+            echo "Use esse valor no segundo apply deste workflow:"
+            echo ""
+            echo "- api_gateway_integration_uri: $listener_arn"
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Setup Helm
+        if: ${{ inputs.deploy_datadog == 'yes' }}
         uses: azure/setup-helm@v4
 
       - name: Deploy Datadog Agent
+        if: ${{ inputs.deploy_datadog == 'yes' }}
         env:
           DATADOG_API_KEY: ${{ secrets.DATADOG_API_KEY }}
         run: |
@@ -110,4 +256,76 @@ jobs:
           helm repo update
           helm upgrade --install datadog-agent datadog/datadog \
             --namespace datadog \
-            --values observability/datadog-values.yaml
+            --values observability/datadog-values.yaml \
+            --set datadog.clusterName="${{ steps.outputs.outputs.cluster_name }}"
+
+  destroy:
+    name: Destroy Kubernetes Infra
+    if: ${{ inputs.action == 'destroy' }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment == 'prod' && 'production' || 'homolog' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Validate required secrets
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+          TF_STATE_BUCKET: ${{ secrets.TF_STATE_BUCKET }}
+        run: |
+          test -n "$AWS_ACCESS_KEY_ID" || (echo "AWS_ACCESS_KEY_ID secret is required." && exit 1)
+          test -n "$AWS_SECRET_ACCESS_KEY" || (echo "AWS_SECRET_ACCESS_KEY secret is required." && exit 1)
+          test -n "$AWS_SESSION_TOKEN" || (echo "AWS_SESSION_TOKEN secret is required for AWS Academy." && exit 1)
+          test -n "$TF_STATE_BUCKET" || (echo "TF_STATE_BUCKET secret is required." && exit 1)
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      - name: Terraform init
+        run: |
+          terraform -chdir=terraform init \
+            -backend-config="bucket=${{ secrets.TF_STATE_BUCKET }}" \
+            -backend-config="key=tech-challenge/k8s/${{ inputs.environment }}.tfstate" \
+            -backend-config="region=${{ env.AWS_REGION }}"
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+
+      - name: Delete Kubernetes resources
+        run: |
+          cluster_name="$(terraform -chdir=terraform output -raw cluster_name 2>/dev/null || true)"
+          if [ -z "$cluster_name" ]; then
+            echo "Cluster output not found. Skipping Kubernetes cleanup."
+            exit 0
+          fi
+          if ! aws eks describe-cluster --region "$AWS_REGION" --name "$cluster_name" >/dev/null 2>&1; then
+            echo "Cluster $cluster_name not found. Skipping Kubernetes cleanup."
+            exit 0
+          fi
+          aws eks update-kubeconfig --region "$AWS_REGION" --name "$cluster_name"
+          helm uninstall datadog-agent --namespace datadog || true
+          kubectl delete namespace datadog --ignore-not-found=true
+          kubectl delete -k "k8s/overlays/${{ inputs.environment }}" --ignore-not-found=true || true
+
+      - name: Terraform destroy
+        env:
+          TF_VAR_environment: ${{ inputs.environment }}
+          TF_VAR_api_gateway_integration_uri: ${{ inputs.api_gateway_integration_uri }}
+          TF_VAR_auth_lambda_invoke_arn: ${{ inputs.auth_lambda_invoke_arn }}
+          TF_VAR_auth_lambda_function_name: ${{ inputs.auth_lambda_function_name }}
+        run: terraform -chdir=terraform destroy -auto-approve

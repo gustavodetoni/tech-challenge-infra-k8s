@@ -48,48 +48,58 @@ Este repositorio tambem publica outputs consumidos pelos repositorios `tech-chal
 
 ## Deploy
 
-O workflow de deploy esta versionado em `.github/workflows/deploy.yml`, mas o deploy automatico esta temporariamente desabilitado para o primeiro push do repositorio.
-Quando as variaveis AWS/Terraform/API Gateway estiverem configuradas, o workflow deve ser reativado para deploy nas branches de homologacao e producao.
+O deploy e executado manualmente pelo GitHub Actions para facilitar a demonstracao no AWS Academy e permitir destruir os recursos depois da gravacao.
+O gatilho automatico por `push` esta comentado no workflow e deve ser habilitado apenas quando as branches de homologacao/producao estiverem configuradas.
 
 Fluxo previsto:
 
 ```text
 pull_request -> terraform fmt/validate + kustomize build
-homolog      -> terraform apply homolog + kubectl apply
-main         -> terraform apply prod + kubectl apply
+Run workflow -> action=apply, environment=homolog
+Run workflow -> action=destroy, environment=homolog
+```
+
+Inputs do workflow manual:
+
+```text
+action                      apply ou destroy
+environment                 homolog ou prod
+deploy_kubernetes           yes para aplicar manifests da API
+deploy_datadog              yes para instalar/atualizar o Datadog Agent
+api_gateway_integration_uri ARN do listener NLB da API
+auth_lambda_invoke_arn      Invoke ARN da Lambda Auth
+auth_lambda_function_name   Nome da Lambda Auth
 ```
 
 ## Ordem De Deploy
 
-1. Aplicar este repositorio primeiro para criar VPC, EKS, API Gateway e security group da Lambda.
+1. Aplicar este repositorio primeiro com `deploy_kubernetes=no` e `deploy_datadog=no` para criar VPC, EKS, API Gateway e security group da Lambda.
 2. Aplicar `tech-challenge-infra-database` para criar o RDS usando os outputs de rede.
-3. Aplicar `tech-challenge-auth-lambda` para criar a Lambda usando os outputs do banco e da rede.
-4. Reaplicar este repositorio com os outputs da Lambda e o ARN do listener do NLB para fechar as rotas do API Gateway.
+3. Configurar o secret `DATABASE_URL` neste repositorio com o output do banco.
+4. Reaplicar este repositorio com `deploy_kubernetes=yes` para criar os manifests da API e obter o ARN do listener do NLB no resumo do workflow.
+5. Aplicar `tech-challenge-auth-lambda` para criar a Lambda usando os outputs do banco e da rede.
+6. Reaplicar este repositorio informando `api_gateway_integration_uri`, `auth_lambda_invoke_arn` e `auth_lambda_function_name` para fechar as rotas protegidas do API Gateway.
 
 Mais detalhes: [docs/architecture/deployment-order.md](docs/architecture/deployment-order.md)
 
-## Variaveis Pendentes Para Subida
+## Secrets Para Subida
 
 Secrets GitHub:
 
 ```text
 AWS_ACCESS_KEY_ID
 AWS_SECRET_ACCESS_KEY
+AWS_SESSION_TOKEN
 TF_STATE_BUCKET
 DATABASE_URL
 JWT_SECRET
-BREVO_API_KEY
-BREVO_SENDER_EMAIL
-DATADOG_API_KEY
+BREVO_API_KEY opcional
+BREVO_SENDER_EMAIL opcional
+DATADOG_API_KEY opcional
 ```
 
-Variables GitHub:
-
-```text
-API_GATEWAY_INTEGRATION_URI
-AUTH_LAMBDA_INVOKE_ARN
-AUTH_LAMBDA_FUNCTION_NAME
-```
+Os valores de API Gateway e Lambda nao precisam ficar salvos como variables no GitHub para a primeira versao.
+Eles podem ser informados diretamente nos inputs do `Run workflow` quando forem gerados pelos workflows anteriores.
 
 ## Arquitetura
 
