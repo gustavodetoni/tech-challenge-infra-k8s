@@ -16,6 +16,6 @@ provider "aws" {
 data "aws_caller_identity" "current" {}
 
 locals {
-  current_assumed_role_name = try(regex("^arn:aws:sts::[0-9]+:assumed-role/([^/]+)/.+$", data.aws_caller_identity.current.arn)[0], "")
-  aws_academy_role_arn      = local.current_assumed_role_name != "" ? "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${local.current_assumed_role_name}" : data.aws_caller_identity.current.arn
+  aws_academy_service_role_arn = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${var.aws_academy_service_role_name}"
+  eks_role_arn                 = var.eks_role_arn != "" ? var.eks_role_arn : local.aws_academy_service_role_arn
 }

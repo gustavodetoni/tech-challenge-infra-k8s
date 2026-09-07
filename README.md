@@ -93,6 +93,7 @@ AWS_SESSION_TOKEN
 TF_STATE_BUCKET
 DATABASE_URL
 JWT_SECRET
+EKS_ROLE_ARN opcional
 BREVO_API_KEY opcional
 BREVO_SENDER_EMAIL opcional
 DATADOG_API_KEY opcional
@@ -103,11 +104,12 @@ Eles podem ser informados diretamente nos inputs do `Run workflow` quando forem 
 
 ## Compatibilidade AWS Academy
 
-O AWS Academy aplica politicas restritivas para IAM, incluindo bloqueios para `iam:GetRole` e `iam:CreateRole` na role `voclabs`.
+O AWS Academy aplica politicas restritivas para IAM, incluindo bloqueios para `iam:GetRole`, `iam:CreateRole` e `iam:PassRole` na role `voclabs`.
 Por isso, o modulo EKS foi fixado na serie `~> 18.0`, que nao usa o data source `aws_iam_session_context`.
 
 As versoes mais novas do modulo EKS, como `v20`, consultam o contexto da sessao IAM durante o `plan` e falham no lab antes da criacao do cluster.
-No AWS Academy, o cluster e o node group reutilizam automaticamente a role temporaria `voclabs` usada nos workflows, evitando a criacao de novas IAM Roles.
+No AWS Academy, o cluster e o node group reutilizam automaticamente a role pre-criada `LabRole`, evitando criacao de novas IAM Roles e evitando passar a role `voclabs`.
+Use o secret opcional `EKS_ROLE_ARN` apenas se o seu lab informar outra role passavel para EKS.
 
 ## Arquitetura
 
