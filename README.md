@@ -2,6 +2,13 @@
 
 Infraestrutura Kubernetes da aplicacao principal da oficina, incluindo rede, cluster, API Gateway, autoscaling e observabilidade.
 
+## Repositorios Da Entrega
+
+- Aplicacao principal: https://github.com/gustavodetoni/tech-challenge-project
+- Lambda Auth CPF/CNPJ: https://github.com/gustavodetoni/tech-challenge-auth-lambda
+- Infra Kubernetes: https://github.com/gustavodetoni/tech-challenge-infra-k8s
+- Infra Database: https://github.com/gustavodetoni/tech-challenge-infra-database
+
 ## Proposito
 
 Este repositorio provisiona e opera a camada de execucao da aplicacao principal em Kubernetes. Ele tambem concentra a entrada HTTP via API Gateway e a integracao com monitoramento.
@@ -40,6 +47,9 @@ kubectl kustomize k8s/overlays/homolog
 Este repositorio tambem publica outputs consumidos pelos repositorios `tech-challenge-infra-database` e `tech-challenge-auth-lambda`, como VPC, subnets privadas, security group dos nodes do EKS e security group da Lambda.
 
 ## Deploy
+
+O workflow de deploy esta versionado em `.github/workflows/deploy.yml`, mas o deploy automatico esta temporariamente desabilitado para o primeiro push do repositorio.
+Quando as variaveis AWS/Terraform/API Gateway estiverem configuradas, o workflow deve ser reativado para deploy nas branches de homologacao e producao.
 
 Fluxo previsto:
 
@@ -122,6 +132,8 @@ Detalhes: [docs/architecture/observability.md](docs/architecture/observability.m
 
 ## Links
 
-- Swagger/Postman da API principal: pendente
-- Deploy homologacao: pendente
-- Deploy producao: pendente
+- Repositorio: https://github.com/gustavodetoni/tech-challenge-infra-k8s
+- Swagger da API principal: https://github.com/gustavodetoni/tech-challenge-project/blob/main/docs/swagger.yaml
+- Postman da API principal: https://github.com/gustavodetoni/tech-challenge-project/blob/main/docs/collections/tech-challenge.postman_collection.json
+- Deploy homologacao: sera atualizado apos o primeiro deploy cloud.
+- Deploy producao: sera atualizado apos o primeiro deploy cloud.
