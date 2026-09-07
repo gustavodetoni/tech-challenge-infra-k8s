@@ -104,10 +104,10 @@ Eles podem ser informados diretamente nos inputs do `Run workflow` quando forem 
 ## Compatibilidade AWS Academy
 
 O AWS Academy aplica uma politica com `Deny` explicito para algumas chamadas IAM, incluindo `iam:GetRole` na role `voclabs`.
-Por isso, o modulo EKS nao usa `enable_cluster_creator_admin_permissions = true`.
+Por isso, o modulo EKS foi fixado na serie `~> 18.0`, que nao usa o data source `aws_iam_session_context`.
 
-A entrada administrativa do cluster e criada via `access_entries`, derivando a role atual com `sts:GetCallerIdentity`, sem consultar `iam:GetRole`.
-Isso permite manter permissao para operar o cluster via `kubectl` no workflow sem exigir permissao IAM bloqueada pelo lab.
+As versoes mais novas do modulo EKS, como `v20`, consultam o contexto da sessao IAM durante o `plan` e falham no lab antes da criacao do cluster.
+No AWS Academy, o cluster deve ser criado e operado pela mesma role temporaria `voclabs` usada nos workflows.
 
 ## Arquitetura
 

@@ -1,29 +1,11 @@
 module "eks" {
   source  = "terraform-aws-modules/eks/aws"
-  version = "~> 20.0"
+  version = "~> 18.0"
 
   cluster_name    = "${var.project_name}-${var.environment}-eks"
   cluster_version = var.cluster_version
 
-  cluster_endpoint_public_access           = true
-  authentication_mode                      = "API_AND_CONFIG_MAP"
-  enable_cluster_creator_admin_permissions = false
-
-  access_entries = {
-    current_runner_admin = {
-      principal_arn = local.current_principal_arn
-      type          = "STANDARD"
-
-      policy_associations = {
-        admin = {
-          policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
-          access_scope = {
-            type = "cluster"
-          }
-        }
-      }
-    }
-  }
+  cluster_endpoint_public_access = true
 
   vpc_id     = module.vpc.vpc_id
   subnet_ids = module.vpc.private_subnets
