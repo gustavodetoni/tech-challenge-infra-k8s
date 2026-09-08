@@ -22,6 +22,18 @@ variable "cluster_version" {
   default     = "1.33"
 }
 
+variable "aws_academy_service_role_name" {
+  description = "Nome da IAM Role pre-criada pelo AWS Academy para ser usada por servicos AWS."
+  type        = string
+  default     = "LabRole"
+}
+
+variable "eks_service_role_arn" {
+  description = "ARN de uma IAM Role existente para EKS/control plane/node group. Se vazio, usa arn:aws:iam::<account>:role/LabRole."
+  type        = string
+  default     = ""
+}
+
 variable "api_gateway_enabled" {
   description = "Habilita o API Gateway HTTP."
   type        = bool

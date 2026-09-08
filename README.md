@@ -93,6 +93,7 @@ AWS_SESSION_TOKEN
 TF_STATE_BUCKET
 DATABASE_URL
 JWT_SECRET
+EKS_SERVICE_ROLE_ARN opcional
 BREVO_API_KEY opcional
 BREVO_SENDER_EMAIL opcional
 DATADOG_API_KEY opcional
@@ -103,11 +104,13 @@ Eles podem ser informados diretamente nos inputs do `Run workflow` quando forem 
 
 ## Compatibilidade AWS Academy
 
-O AWS Academy aplica politicas restritivas para IAM, incluindo bloqueios para `iam:GetRole`, `iam:CreateRole` e `iam:CreateOpenIDConnectProvider`.
+O AWS Academy aplica politicas restritivas para IAM, incluindo bloqueios para `iam:GetRole`, `iam:CreateRole`, `iam:PassRole` na role de sessao `voclabs` e `iam:CreateOpenIDConnectProvider`.
 Por isso, o modulo EKS foi fixado na serie `~> 18.0`, que nao usa o data source `aws_iam_session_context`.
 
 As versoes mais novas do modulo EKS, como `v20`, consultam o contexto da sessao IAM durante o `plan` e falham no lab antes da criacao do cluster.
+No AWS Academy, o cluster e o node group reutilizam por padrao a role pre-criada `LabRole`, que e a role esperada para ser passada aos servicos AWS.
 O IRSA/OIDC tambem fica desabilitado para evitar criacao de IAM OpenID Connect Provider, que nao e necessario para a demonstracao com Datadog via API key.
+Use `EKS_SERVICE_ROLE_ARN` apenas se o seu lab informar outra role passavel para EKS.
 
 ## Arquitetura
 

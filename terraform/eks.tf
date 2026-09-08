@@ -7,7 +7,7 @@ module "eks" {
 
   cluster_endpoint_public_access = true
   create_iam_role                = false
-  iam_role_arn                   = local.aws_academy_role_arn
+  iam_role_arn                   = local.eks_service_role_arn
   enable_irsa                    = false
 
   vpc_id     = module.vpc.vpc_id
@@ -16,7 +16,7 @@ module "eks" {
   eks_managed_node_groups = {
     default = {
       create_iam_role = false
-      iam_role_arn    = local.aws_academy_role_arn
+      iam_role_arn    = local.eks_service_role_arn
 
       min_size     = 1
       max_size     = 3
