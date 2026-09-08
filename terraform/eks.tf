@@ -13,6 +13,17 @@ module "eks" {
   vpc_id     = module.vpc.vpc_id
   subnet_ids = module.vpc.private_subnets
 
+  node_security_group_additional_rules = {
+    egress_postgresql = {
+      description = "Node egress to private PostgreSQL"
+      protocol    = "tcp"
+      from_port   = 5432
+      to_port     = 5432
+      type        = "egress"
+      cidr_blocks = [module.vpc.vpc_cidr_block]
+    }
+  }
+
   eks_managed_node_groups = {
     default = {
       create_iam_role = false
