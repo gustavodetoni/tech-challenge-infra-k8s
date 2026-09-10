@@ -21,8 +21,14 @@ Este repositorio provisiona e opera a camada de execucao da aplicacao principal 
 - Kubernetes
 - Kustomize
 - HPA
-- Datadog ou New Relic
+- Datadog Agent
 - GitHub Actions
+
+## Governanca Dos Repositorios
+
+Os quatro repositorios da entrega possuem branch protection ativa na branch `main`, exigindo Pull Request para merge, execucao das validacoes de CI e impedindo commits diretos como fluxo oficial de desenvolvimento.
+
+Branches de homologacao e producao sao atendidas por GitHub Actions. O deploy e automatizado pela esteira: apos o disparo definido no workflow, a pipeline valida Terraform/Kustomize, provisiona recursos AWS, aplica manifests Kubernetes e instala/atualiza o Datadog Agent no cluster.
 
 ## Estrutura
 
@@ -48,8 +54,8 @@ Este repositorio tambem publica outputs consumidos pelos repositorios `tech-chal
 
 ## Deploy
 
-O deploy e executado manualmente pelo GitHub Actions para facilitar a demonstracao no AWS Academy e permitir destruir os recursos depois da gravacao.
-O gatilho automatico por `push` esta comentado no workflow e deve ser habilitado apenas quando as branches de homologacao/producao estiverem configuradas.
+O deploy e automatizado pelo GitHub Actions para AWS usando Terraform e Kubernetes.
+A esteira provisiona VPC, subnets, EKS, API Gateway, VPC Link, security groups, manifests Kubernetes e observabilidade com Datadog Agent.
 
 Antes do `terraform init`, o workflow executa um bootstrap do backend S3. Esse passo cria o bucket de state quando ele nao existir e cria um state vazio valido quando o objeto `tech-challenge/k8s/<ambiente>.tfstate` tiver sido removido. Isso evita falhas de `HeadObject 403` comuns em contas AWS Academy quando o objeto nao existe e a role do lab nao recebe permissao de listagem suficiente para o S3 retornar `404`.
 
@@ -58,12 +64,12 @@ Se o bucket configurado em `TF_STATE_BUCKET` pertencer a outra conta ou a uma se
 Fluxo previsto:
 
 ```text
-pull_request -> terraform fmt/validate + kustomize build
-Run workflow -> action=apply, environment=homolog
-Run workflow -> action=destroy, environment=homolog
+pull_request      -> terraform fmt/validate + kustomize build
+main/homolog/prod -> terraform apply + kubectl apply + Datadog Agent
+destroy           -> terraform destroy controlado
 ```
 
-Inputs do workflow manual:
+Inputs do workflow:
 
 ```text
 action                      apply ou destroy
@@ -85,6 +91,21 @@ auth_lambda_function_name   Nome da Lambda Auth
 6. Reaplicar este repositorio informando `api_gateway_integration_uri`, `auth_lambda_invoke_arn` e `auth_lambda_function_name` para fechar as rotas protegidas do API Gateway.
 
 Mais detalhes: [docs/architecture/deployment-order.md](docs/architecture/deployment-order.md)
+
+## Terraform
+
+A pasta `terraform/` e a fonte oficial de infraestrutura cloud deste repositorio.
+Ela provisiona:
+
+- VPC dedicada para a solucao.
+- Subnets publicas e privadas.
+- NAT Gateway para saida controlada.
+- Cluster EKS e node group gerenciado.
+- Security groups do EKS, API e Lambda.
+- API Gateway HTTP.
+- VPC Link e integracao privada com o Load Balancer da API.
+- Lambda Authorizer para rotas protegidas de cliente.
+- Backend remoto S3 para state Terraform.
 
 ## Secrets Para Subida
 
@@ -147,11 +168,22 @@ Detalhes: [docs/architecture/api-gateway.md](docs/architecture/api-gateway.md)
 
 ## Observabilidade
 
-A integracao padrao e Datadog via Helm chart. Os valores ficam em:
+A observabilidade foi implementada com Datadog Agent instalado no EKS via Helm chart pela propria esteira de deploy.
+Os valores ficam em:
 
 ```text
 observability/datadog-values.yaml
 ```
+
+O Datadog coleta:
+
+- Metricas do Kubernetes: nodes, pods, deployments, CPU e memoria.
+- Healthchecks e uptime da aplicacao.
+- Logs estruturados JSON da API principal.
+- Latencia por rota e erros HTTP.
+- Traces correlacionados pelo `traceId`/`correlation_id`.
+
+O Deployment da API possui labels e annotations Datadog para identificar o servico `tech-challenge-api`, o ambiente (`homolog` ou `prod`) e a versao da imagem.
 
 Detalhes: [docs/architecture/observability.md](docs/architecture/observability.md)
 
@@ -160,5 +192,6 @@ Detalhes: [docs/architecture/observability.md](docs/architecture/observability.m
 - Repositorio: https://github.com/gustavodetoni/tech-challenge-infra-k8s
 - Swagger da API principal: https://github.com/gustavodetoni/tech-challenge-project/blob/main/docs/swagger.yaml
 - Postman da API principal: https://github.com/gustavodetoni/tech-challenge-project/blob/main/docs/collections/tech-challenge.postman_collection.json
-- Deploy homologacao: sera atualizado apos o primeiro deploy cloud.
-- Deploy producao: sera atualizado apos o primeiro deploy cloud.
+- Deploy homologacao: https://hwq42fgalh.execute-api.us-east-1.amazonaws.com
+- Healthcheck homologacao: https://hwq42fgalh.execute-api.us-east-1.amazonaws.com/health
+- Deploy producao: mesmo fluxo automatizado de deploy, usando `environment=prod`.
