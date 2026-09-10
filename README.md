@@ -51,6 +51,10 @@ Este repositorio tambem publica outputs consumidos pelos repositorios `tech-chal
 O deploy e executado manualmente pelo GitHub Actions para facilitar a demonstracao no AWS Academy e permitir destruir os recursos depois da gravacao.
 O gatilho automatico por `push` esta comentado no workflow e deve ser habilitado apenas quando as branches de homologacao/producao estiverem configuradas.
 
+Antes do `terraform init`, o workflow executa um bootstrap do backend S3. Esse passo cria o bucket de state quando ele nao existir e cria um state vazio valido quando o objeto `tech-challenge/k8s/<ambiente>.tfstate` tiver sido removido. Isso evita falhas de `HeadObject 403` comuns em contas AWS Academy quando o objeto nao existe e a role do lab nao recebe permissao de listagem suficiente para o S3 retornar `404`.
+
+Se o bucket configurado em `TF_STATE_BUCKET` pertencer a outra conta ou a uma sessao antiga sem acesso, crie/defina um novo bucket unico para o lab atual e rode novamente a ordem de deploy desde a primeira etapa.
+
 Fluxo previsto:
 
 ```text

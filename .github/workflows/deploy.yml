@@ -101,6 +101,13 @@ jobs:
         with:
           terraform_wrapper: false
 
+      - name: Ensure Terraform backend state
+        run: |
+          bash scripts/ensure-terraform-backend-state.sh \
+            "${{ secrets.TF_STATE_BUCKET }}" \
+            "tech-challenge/k8s/${{ inputs.environment }}.tfstate" \
+            "${{ env.AWS_REGION }}"
+
       - name: Terraform init
         run: |
           terraform -chdir=terraform init \
@@ -283,6 +290,13 @@ jobs:
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_wrapper: false
+
+      - name: Ensure Terraform backend state
+        run: |
+          bash scripts/ensure-terraform-backend-state.sh \
+            "${{ secrets.TF_STATE_BUCKET }}" \
+            "tech-challenge/k8s/${{ inputs.environment }}.tfstate" \
+            "${{ env.AWS_REGION }}"
 
       - name: Terraform init
         run: |

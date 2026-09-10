@@ -6,6 +6,8 @@ Esta ordem evita dependencia circular entre rede, banco, Lambda e aplicacao.
 
 Repositorio: `tech-challenge-infra-k8s`
 
+Em contas AWS Academy, confirme que o secret `TF_STATE_BUCKET` aponta para um bucket acessivel pela sessao atual do lab. A esteira faz bootstrap do backend S3 antes do `terraform init` e cria um state vazio valido se o objeto tiver sumido, mas ela nao consegue recuperar acesso a bucket de outra conta ou de uma sessao antiga sem permissao.
+
 Execute o workflow manual com:
 
 ```text
