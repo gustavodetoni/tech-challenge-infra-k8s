@@ -178,13 +178,39 @@ jobs:
             echo "BREVO_SENDER_EMAIL=$BREVO_SENDER_EMAIL"
           } > "k8s/overlays/${{ inputs.environment }}/.env.k8s"
 
+      - name: Create microservices env file
+        if: ${{ inputs.deploy_kubernetes == 'yes' }}
+        env:
+          OS_DATABASE_URL: ${{ secrets.OS_DATABASE_URL }}
+          BILLING_DATABASE_URL: ${{ secrets.BILLING_DATABASE_URL }}
+          MERCADO_PAGO_ACCESS_TOKEN: ${{ secrets.MERCADO_PAGO_ACCESS_TOKEN }}
+        run: |
+          test -n "$OS_DATABASE_URL" || (echo "OS_DATABASE_URL secret is required when deploy_kubernetes=yes." && exit 1)
+          test -n "$BILLING_DATABASE_URL" || (echo "BILLING_DATABASE_URL secret is required when deploy_kubernetes=yes." && exit 1)
+          test -n "$MERCADO_PAGO_ACCESS_TOKEN" || (echo "MERCADO_PAGO_ACCESS_TOKEN secret is required when deploy_kubernetes=yes." && exit 1)
+          {
+            echo "OS_DATABASE_URL=$OS_DATABASE_URL"
+            echo "BILLING_DATABASE_URL=$BILLING_DATABASE_URL"
+            echo "MERCADO_PAGO_ACCESS_TOKEN=$MERCADO_PAGO_ACCESS_TOKEN"
+          } > "k8s/overlays/${{ inputs.environment }}/.env.microservices"
+
       - name: Deploy Kubernetes manifests
         if: ${{ inputs.deploy_kubernetes == 'yes' }}
-        run: kubectl apply -k "k8s/overlays/${{ inputs.environment }}"
+        run: |
+          kubectl delete job tech-challenge-database-bootstrap -n "$K8S_NAMESPACE" --ignore-not-found
+          kubectl apply -k "k8s/overlays/${{ inputs.environment }}"
+
+      - name: Wait for database bootstrap
+        if: ${{ inputs.deploy_kubernetes == 'yes' }}
+        run: kubectl wait --for=condition=complete job/tech-challenge-database-bootstrap -n "$K8S_NAMESPACE" --timeout=600s
 
       - name: Wait for rollout
         if: ${{ inputs.deploy_kubernetes == 'yes' }}
-        run: kubectl rollout status "deployment/$K8S_DEPLOYMENT" -n "$K8S_NAMESPACE" --timeout=300s
+        run: |
+          kubectl rollout status deployment/tech-challenge-api -n "$K8S_NAMESPACE" --timeout=300s
+          kubectl rollout status deployment/tech-challenge-os-service -n "$K8S_NAMESPACE" --timeout=300s
+          kubectl rollout status deployment/tech-challenge-billing-service -n "$K8S_NAMESPACE" --timeout=300s
+          kubectl rollout status deployment/tech-challenge-execution-service -n "$K8S_NAMESPACE" --timeout=300s
 
       - name: Print NLB listener ARN
         if: ${{ inputs.deploy_kubernetes == 'yes' }}

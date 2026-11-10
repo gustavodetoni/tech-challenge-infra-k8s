@@ -8,4 +8,5 @@ resources:
   - api-service.yaml
   - api-hpa.yaml
   - microservices.yaml
+  - database-bootstrap.yaml
 

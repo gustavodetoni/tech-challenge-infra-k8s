@@ -134,6 +134,8 @@ BILLING_DATABASE_URL
 MERCADO_PAGO_ACCESS_TOKEN
 ```
 
+Quando `deploy_kubernetes=yes`, o workflow gera o arquivo temporário `.env.microservices`, cria o Secret Kubernetes e executa o Job `tech-challenge-database-bootstrap`. Esse Job cria de forma idempotente os bancos lógicos `os_service` e `billing_service` no RDS antes de aguardar o rollout dos quatro Deployments.
+
 Os valores de API Gateway e Lambda nao precisam ficar salvos como variables no GitHub para a primeira versao.
 Eles podem ser informados diretamente nos inputs do `Run workflow` quando forem gerados pelos workflows anteriores.
 
