@@ -1,0 +1,96 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: tech-challenge-os-service, namespace: tech-challenge, labels: {app.kubernetes.io/name: tech-challenge-os-service, app.kubernetes.io/component: microservice}}
+spec:
+  replicas: 2
+  selector: {matchLabels: {app.kubernetes.io/name: tech-challenge-os-service}}
+  template:
+    metadata: {labels: {app.kubernetes.io/name: tech-challenge-os-service, tags.datadoghq.com/service: tech-challenge-os-service}}
+    spec:
+      containers:
+        - name: api
+          image: docker.io/gustavodetoni/tech-challenge-os-service:latest
+          ports: [{name: http, containerPort: 8081}]
+          env: [{name: PORT, value: "8081"}, {name: DATABASE_URL, valueFrom: {secretKeyRef: {name: tech-challenge-microservices-secret, key: OS_DATABASE_URL}}}, {name: RABBITMQ_URL, value: "amqp://guest:guest@tech-challenge-rabbitmq:5672/"}]
+          readinessProbe: {httpGet: {path: /health, port: http}, initialDelaySeconds: 5}
+          livenessProbe: {httpGet: {path: /health, port: http}, initialDelaySeconds: 15}
+          resources: {requests: {cpu: 50m, memory: 128Mi}, limits: {cpu: 500m, memory: 512Mi}}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: tech-challenge-os-service, namespace: tech-challenge}
+spec: {selector: {app.kubernetes.io/name: tech-challenge-os-service}, ports: [{name: http, port: 8081, targetPort: http}]}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: tech-challenge-billing-service, namespace: tech-challenge, labels: {app.kubernetes.io/name: tech-challenge-billing-service, app.kubernetes.io/component: microservice}}
+spec:
+  replicas: 2
+  selector: {matchLabels: {app.kubernetes.io/name: tech-challenge-billing-service}}
+  template:
+    metadata: {labels: {app.kubernetes.io/name: tech-challenge-billing-service, tags.datadoghq.com/service: tech-challenge-billing-service}}
+    spec:
+      containers:
+        - name: api
+          image: docker.io/gustavodetoni/tech-challenge-billing-service:latest
+          ports: [{name: http, containerPort: 8082}]
+          env: [{name: PORT, value: "8082"}, {name: DATABASE_URL, valueFrom: {secretKeyRef: {name: tech-challenge-microservices-secret, key: BILLING_DATABASE_URL}}}, {name: MERCADO_PAGO_ACCESS_TOKEN, valueFrom: {secretKeyRef: {name: tech-challenge-microservices-secret, key: MERCADO_PAGO_ACCESS_TOKEN}}}, {name: RABBITMQ_URL, value: "amqp://guest:guest@tech-challenge-rabbitmq:5672/"}]
+          readinessProbe: {httpGet: {path: /health, port: http}, initialDelaySeconds: 5}
+          livenessProbe: {httpGet: {path: /health, port: http}, initialDelaySeconds: 15}
+          resources: {requests: {cpu: 50m, memory: 128Mi}, limits: {cpu: 500m, memory: 512Mi}}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: tech-challenge-billing-service, namespace: tech-challenge}
+spec: {selector: {app.kubernetes.io/name: tech-challenge-billing-service}, ports: [{name: http, port: 8082, targetPort: http}]}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: tech-challenge-execution-service, namespace: tech-challenge, labels: {app.kubernetes.io/name: tech-challenge-execution-service, app.kubernetes.io/component: microservice}}
+spec:
+  replicas: 2
+  selector: {matchLabels: {app.kubernetes.io/name: tech-challenge-execution-service}}
+  template:
+    metadata: {labels: {app.kubernetes.io/name: tech-challenge-execution-service, tags.datadoghq.com/service: tech-challenge-execution-service}}
+    spec:
+      containers:
+        - name: api
+          image: docker.io/gustavodetoni/tech-challenge-execution-service:latest
+          ports: [{name: http, containerPort: 8083}]
+          env: [{name: PORT, value: "8083"}, {name: MONGODB_URL, value: "mongodb://tech-challenge-mongodb:27017"}, {name: MONGODB_DATABASE, value: execution_service}, {name: RABBITMQ_URL, value: "amqp://guest:guest@tech-challenge-rabbitmq:5672/"}]
+          readinessProbe: {httpGet: {path: /health, port: http}, initialDelaySeconds: 5}
+          livenessProbe: {httpGet: {path: /health, port: http}, initialDelaySeconds: 15}
+          resources: {requests: {cpu: 50m, memory: 128Mi}, limits: {cpu: 500m, memory: 512Mi}}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: tech-challenge-execution-service, namespace: tech-challenge}
+spec: {selector: {app.kubernetes.io/name: tech-challenge-execution-service}, ports: [{name: http, port: 8083, targetPort: http}]}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: tech-challenge-rabbitmq, namespace: tech-challenge}
+spec:
+  selector: {matchLabels: {app.kubernetes.io/name: tech-challenge-rabbitmq}}
+  template:
+    metadata: {labels: {app.kubernetes.io/name: tech-challenge-rabbitmq}}
+    spec: {containers: [{name: rabbitmq, image: rabbitmq:3.13-management-alpine, ports: [{name: amqp, containerPort: 5672}, {name: management, containerPort: 15672}], readinessProbe: {tcpSocket: {port: amqp}, initialDelaySeconds: 10}}]}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: tech-challenge-rabbitmq, namespace: tech-challenge}
+spec: {selector: {app.kubernetes.io/name: tech-challenge-rabbitmq}, ports: [{name: amqp, port: 5672, targetPort: amqp}, {name: management, port: 15672, targetPort: management}]}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: tech-challenge-mongodb, namespace: tech-challenge}
+spec:
+  selector: {matchLabels: {app.kubernetes.io/name: tech-challenge-mongodb}}
+  template:
+    metadata: {labels: {app.kubernetes.io/name: tech-challenge-mongodb}}
+    spec: {containers: [{name: mongodb, image: mongo:8, ports: [{name: mongo, containerPort: 27017}], readinessProbe: {tcpSocket: {port: mongo}, initialDelaySeconds: 10}}]}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: tech-challenge-mongodb, namespace: tech-challenge}
+spec: {selector: {app.kubernetes.io/name: tech-challenge-mongodb}, ports: [{name: mongo, port: 27017, targetPort: mongo}]}

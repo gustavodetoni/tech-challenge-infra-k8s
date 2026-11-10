@@ -26,7 +26,7 @@ Este repositorio provisiona e opera a camada de execucao da aplicacao principal 
 
 ## Governanca Dos Repositorios
 
-Os quatro repositorios da entrega possuem branch protection ativa na branch `main`, exigindo Pull Request para merge, execucao das validacoes de CI e impedindo commits diretos como fluxo oficial de desenvolvimento.
+Os repositórios oficiais da Fase 3 possuem branch protection na branch `main`. Para a Fase 4, os três novos repositórios já possuem workflows e branch `main` local; a proteção de branch e os PRs obrigatórios ainda precisam ser habilitados após a publicação dos remotes.
 
 Branches de homologacao e producao sao atendidas por GitHub Actions. O deploy e automatizado pela esteira: apos o disparo definido no workflow, a pipeline valida Terraform/Kustomize, provisiona recursos AWS, aplica manifests Kubernetes e instala/atualiza o Datadog Agent no cluster.
 
@@ -40,6 +40,8 @@ k8s/overlays/prod/      Ambiente de producao
 observability/          Helm values e instrucoes Datadog
 docs/architecture/      Diagramas e decisoes do repo
 ```
+
+Na Fase 4, os manifests também executam `tech-challenge-os-service`, `tech-challenge-billing-service`, `tech-challenge-execution-service`, RabbitMQ e MongoDB. Cada serviço possui Deployment, Service, healthchecks, configuração e imagem independentes.
 
 ## Execucao Local
 
@@ -124,6 +126,14 @@ BREVO_SENDER_EMAIL opcional
 DATADOG_API_KEY opcional
 ```
 
+Secrets adicionais da Fase 4:
+
+```text
+OS_DATABASE_URL
+BILLING_DATABASE_URL
+MERCADO_PAGO_ACCESS_TOKEN
+```
+
 Os valores de API Gateway e Lambda nao precisam ficar salvos como variables no GitHub para a primeira versao.
 Eles podem ser informados diretamente nos inputs do `Run workflow` quando forem gerados pelos workflows anteriores.
 
@@ -165,6 +175,20 @@ POST /client/service-orders/{code}/budget/reject
 ```
 
 Detalhes: [docs/architecture/api-gateway.md](docs/architecture/api-gateway.md)
+
+As rotas dos microsserviços da Fase 4 ainda são acessadas pelos Services internos do cluster. A publicação de rotas externas `/service-orders`, `/quotes` e `/executions` no API Gateway é uma pendência para o deploy final.
+
+## Fase 4 — validação operacional
+
+```bash
+cp k8s/overlays/homolog/.env.k8s.example k8s/overlays/homolog/.env.k8s
+cp k8s/overlays/homolog/.env.microservices.example k8s/overlays/homolog/.env.microservices
+kubectl kustomize k8s/overlays/homolog
+```
+
+O workflow `ci.yml` valida os overlays. O workflow `deploy.yml` provisiona a base AWS, aplica os manifests e instala o Datadog quando habilitado. Os workflows dos três microsserviços atualizam individualmente as imagens dos Deployments.
+
+Pendências de produção: StatefulSet/PVC e backup para MongoDB/RabbitMQ, alta disponibilidade da mensageria, criação automatizada dos bancos lógicos OS/Billing e roteamento público no API Gateway.
 
 ## Observabilidade
 

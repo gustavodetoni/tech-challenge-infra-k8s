@@ -12,6 +12,10 @@ secretGenerator:
     namespace: tech-challenge
     envs:
       - .env.k8s
+  - name: tech-challenge-microservices-secret
+    namespace: tech-challenge
+    envs:
+      - .env.microservices
 patches:
   - target:
       group: apps
