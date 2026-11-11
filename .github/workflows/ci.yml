@@ -39,9 +39,11 @@ jobs:
       - name: Kustomize homolog
         run: |
           cp k8s/overlays/homolog/.env.k8s.example k8s/overlays/homolog/.env.k8s
+          cp k8s/overlays/homolog/.env.microservices.example k8s/overlays/homolog/.env.microservices
           kubectl kustomize k8s/overlays/homolog
 
       - name: Kustomize prod
         run: |
           cp k8s/overlays/prod/.env.k8s.example k8s/overlays/prod/.env.k8s
+          cp k8s/overlays/prod/.env.microservices.example k8s/overlays/prod/.env.microservices
           kubectl kustomize k8s/overlays/prod
