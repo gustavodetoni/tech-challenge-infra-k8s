@@ -221,3 +221,20 @@ Detalhes: [docs/architecture/observability.md](docs/architecture/observability.m
 - Deploy homologacao: https://hwq42fgalh.execute-api.us-east-1.amazonaws.com
 - Healthcheck homologacao: https://hwq42fgalh.execute-api.us-east-1.amazonaws.com/health
 - Deploy producao: mesmo fluxo automatizado de deploy, usando `environment=prod`.
+
+## Papel na Fase 4
+
+Este é o repositório oficial de infraestrutura compartilhada. Ele não substitui os três repositórios de código dos microsserviços; fornece a plataforma onde eles são executados.
+
+Responsabilidades:
+
+- VPC, EKS, API Gateway e VPC Link;
+- Deployments, Services, HPA e probes dos microsserviços;
+- RabbitMQ para os eventos da Saga;
+- MongoDB para o Execution Service;
+- bootstrap dos bancos lógicos OS/Billing no RDS;
+- Secrets e configuração por ambiente;
+- Datadog Agent e observabilidade;
+- overlays de homologação e produção.
+
+Os manifestos dos microsserviços estão em [k8s/base/microservices.yaml](k8s/base/microservices.yaml). Eles são referenciados pelos overlays `homolog` e `prod` e atualizados pelos workflows de deploy de cada serviço.
